@@ -1,0 +1,88 @@
+# ──────────────────────────────────────────────
+# .NET build output
+# ──────────────────────────────────────────────
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+bld/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.user
+*.userosscache
+*.suo
+*.nupkg
+*.snupkg
+project.lock.json
+**/[Pp]ublish/
+
+# ──────────────────────────────────────────────
+# IDE & editors
+# ──────────────────────────────────────────────
+.vs/
+.vscode/
+.idea/
+*.sln.iml
+*.rsuser
+
+# ──────────────────────────────────────────────
+# Secrets & environment
+# ──────────────────────────────────────────────
+appsettings.Production.json
+appsettings.Staging.json
+appsettings.*.local.json
+*.pfx
+*.key
+*.pem
+
+# ──────────────────────────────────────────────
+# ONNX models (large binary files)
+# ──────────────────────────────────────────────
+OnnxModels/*.onnx
+
+# ──────────────────────────────────────────────
+# Logs
+# ──────────────────────────────────────────────
+Logs/
+
+# ──────────────────────────────────────────────
+# Database files
+# ──────────────────────────────────────────────
+*.mdf
+*.ldf
+
+# ──────────────────────────────────────────────
+# OS generated files
+# ──────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ──────────────────────────────────────────────
+# React Native / Expo (frontend companion)
+# ──────────────────────────────────────────────
+node_modules/
+.expo/
+dist/
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.env
+.env.local
+.env.*.local
+*.jks
+*.p8
+*.p12
+*.mobileprovision
+android/app/debug.apk
+android/app/release.apk
+ios/Pods/
+ios/build/
+*.hprof
