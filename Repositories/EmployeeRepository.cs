@@ -22,9 +22,14 @@ public class EmployeeRepository : Repository<Employee>, IEmployeeRepository
         => await _dbSet.AsNoTracking().Where(e => e.IsActive).OrderBy(e => e.FullName).ToListAsync(cancellationToken);
 
     public async Task<List<Employee>> GetAllActiveWithEmbeddingsAsync(CancellationToken cancellationToken = default)
-        => await _dbSet
-            .Where(e => e.IsActive && e.EncryptedEmbedding.Length > 0)
+    {
+        var employees = await _dbSet
+            .Where(e => e.IsActive)
             .ToListAsync(cancellationToken);
+
+        // Filter in memory — EF Core cannot translate byte[].Length to SQL
+        return employees.Where(e => e.EncryptedEmbedding.Length > 0).ToList();
+    }
 
     public async Task<int> CountActiveAsync(CancellationToken cancellationToken = default)
         => await _dbSet.CountAsync(e => e.IsActive, cancellationToken);

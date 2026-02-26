@@ -20,16 +20,24 @@ public class AttendanceController : ControllerBase
     }
 
     /// <summary>
-    /// Mark check-in by submitting a face image.
+    /// Mark check-in by uploading a face photo.
+    /// Send as multipart/form-data — attach the photo as FaceImage.
     /// Supports 1:1 verification (with EmployeeId) or 1:N identification (without EmployeeId).
     /// </summary>
     [HttpPost("check-in")]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(ApiResponse<MarkAttendanceResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CheckIn([FromBody] MarkAttendanceRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> CheckIn([FromForm] MarkAttendanceFormRequest form, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
             return BadRequest(ApiResponse<object>.Fail("Validation failed.", GetModelErrors()));
+
+        var request = new MarkAttendanceRequest
+        {
+            FaceImageBase64 = await ToBase64Async(form.FaceImage),
+            EmployeeId = form.EmployeeId
+        };
 
         var result = await _attendanceService.MarkCheckInAsync(request, cancellationToken);
 
@@ -40,16 +48,24 @@ public class AttendanceController : ControllerBase
     }
 
     /// <summary>
-    /// Mark check-out by submitting a face image.
+    /// Mark check-out by uploading a face photo.
+    /// Send as multipart/form-data — attach the photo as FaceImage.
     /// Supports 1:1 verification (with EmployeeId) or 1:N identification (without EmployeeId).
     /// </summary>
     [HttpPost("check-out")]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(ApiResponse<MarkAttendanceResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CheckOut([FromBody] CheckOutRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> CheckOut([FromForm] CheckOutFormRequest form, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
             return BadRequest(ApiResponse<object>.Fail("Validation failed.", GetModelErrors()));
+
+        var request = new CheckOutRequest
+        {
+            FaceImageBase64 = await ToBase64Async(form.FaceImage),
+            EmployeeId = form.EmployeeId
+        };
 
         var result = await _attendanceService.MarkCheckOutAsync(request, cancellationToken);
 
@@ -103,4 +119,11 @@ public class AttendanceController : ControllerBase
             .SelectMany(v => v.Errors)
             .Select(e => e.ErrorMessage)
             .ToList();
+
+    private static async Task<string> ToBase64Async(IFormFile file)
+    {
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        return Convert.ToBase64String(ms.ToArray());
+    }
 }

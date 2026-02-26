@@ -21,16 +21,27 @@ public class EmployeeController : ControllerBase
 
     /// <summary>
     /// Onboard a new employee with facial data.
-    /// Accepts a base64-encoded face image which is processed, stored in Cloudinary,
-    /// and the face embedding is encrypted and saved.
+    /// Send as multipart/form-data — attach the face photo directly as FaceImage.
     /// </summary>
     [HttpPost]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(ApiResponse<EmployeeResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Onboard([FromBody] OnboardEmployeeRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> Onboard([FromForm] OnboardEmployeeFormRequest form, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
             return BadRequest(ApiResponse<object>.Fail("Validation failed.", GetModelErrors()));
+
+        var request = new OnboardEmployeeRequest
+        {
+            FullName = form.FullName,
+            Email = form.Email,
+            Phone = form.Phone,
+            Department = form.Department,
+            Position = form.Position,
+            JoinDate = form.JoinDate,
+            FaceImageBase64 = await ToBase64Async(form.FaceImage)
+        };
 
         var employee = await _employeeService.OnboardAsync(request, cancellationToken);
 
@@ -105,14 +116,21 @@ public class EmployeeController : ControllerBase
 
     /// <summary>
     /// Update an employee's face image and re-extract the embedding.
+    /// Send as multipart/form-data — attach the new face photo as FaceImage.
     /// </summary>
     [HttpPut("{id:guid}/face")]
+    [Consumes("multipart/form-data")]
     [ProducesResponseType(typeof(ApiResponse<EmployeeResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> UpdateFace(Guid id, [FromBody] UpdateEmployeeFaceRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> UpdateFace(Guid id, [FromForm] UpdateEmployeeFaceFormRequest form, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
             return BadRequest(ApiResponse<object>.Fail("Validation failed.", GetModelErrors()));
+
+        var request = new UpdateEmployeeFaceRequest
+        {
+            FaceImageBase64 = await ToBase64Async(form.FaceImage)
+        };
 
         var employee = await _employeeService.UpdateFaceAsync(id, request, cancellationToken);
 
@@ -156,4 +174,11 @@ public class EmployeeController : ControllerBase
             .SelectMany(v => v.Errors)
             .Select(e => e.ErrorMessage)
             .ToList();
+
+    private static async Task<string> ToBase64Async(IFormFile file)
+    {
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        return Convert.ToBase64String(ms.ToArray());
+    }
 }
