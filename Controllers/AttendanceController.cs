@@ -1,12 +1,11 @@
 using FacialRecognitionAPI.Models.DTOs.Requests;
-using FacialRecognitionAPI.Models.DTOs.Responses;
 using FacialRecognitionAPI.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FacialRecognitionAPI.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/attendance")]
 [Produces("application/json")]
 public class AttendanceController : ControllerBase
 {
@@ -20,110 +19,44 @@ public class AttendanceController : ControllerBase
     }
 
     /// <summary>
-    /// Mark check-in by uploading a face photo.
-    /// Send as multipart/form-data — attach the photo as FaceImage.
-    /// Supports 1:1 verification (with EmployeeId) or 1:N identification (without EmployeeId).
+    /// Record attendance for an employee identified by their UUID.
+    /// Called only after on-device face recognition succeeds.
     /// </summary>
-    [HttpPost("check-in")]
-    [Consumes("multipart/form-data")]
-    [ProducesResponseType(typeof(ApiResponse<MarkAttendanceResponse>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CheckIn([FromForm] MarkAttendanceFormRequest form, CancellationToken cancellationToken)
+    [HttpPost]
+    public async Task<IActionResult> MarkAttendance([FromBody] MarkAttendanceRequest request, CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
-            return BadRequest(ApiResponse<object>.Fail("Validation failed.", GetModelErrors()));
-
-        var request = new MarkAttendanceRequest
         {
-            FaceImageBase64 = await ToBase64Async(form.FaceImage),
-            EmployeeId = form.EmployeeId
-        };
+            var firstError = ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => e.ErrorMessage)
+                .FirstOrDefault() ?? "Invalid request.";
+            return BadRequest(new { message = firstError });
+        }
 
-        var result = await _attendanceService.MarkCheckInAsync(request, cancellationToken);
-
-        _logger.LogInformation("Check-in recorded for {EmployeeName} ({EmployeeCode}) with similarity {Score:F4}",
-            result.EmployeeName, result.EmployeeCode, result.SimilarityScore);
-
-        return Ok(ApiResponse<MarkAttendanceResponse>.Ok(result, "Check-in recorded successfully."));
+        var response = await _attendanceService.MarkAttendanceAsync(request, cancellationToken);
+        _logger.LogInformation("Attendance marked: {AttendanceId} for UUID {Uuid}", response.AttendanceId, response.Uuid);
+        return Created(string.Empty, response);
     }
 
     /// <summary>
-    /// Mark check-out by uploading a face photo.
-    /// Send as multipart/form-data — attach the photo as FaceImage.
-    /// Supports 1:1 verification (with EmployeeId) or 1:N identification (without EmployeeId).
-    /// </summary>
-    [HttpPost("check-out")]
-    [Consumes("multipart/form-data")]
-    [ProducesResponseType(typeof(ApiResponse<MarkAttendanceResponse>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CheckOut([FromForm] CheckOutFormRequest form, CancellationToken cancellationToken)
-    {
-        if (!ModelState.IsValid)
-            return BadRequest(ApiResponse<object>.Fail("Validation failed.", GetModelErrors()));
-
-        var request = new CheckOutRequest
-        {
-            FaceImageBase64 = await ToBase64Async(form.FaceImage),
-            EmployeeId = form.EmployeeId
-        };
-
-        var result = await _attendanceService.MarkCheckOutAsync(request, cancellationToken);
-
-        _logger.LogInformation("Check-out recorded for {EmployeeName} ({EmployeeCode})",
-            result.EmployeeName, result.EmployeeCode);
-
-        return Ok(ApiResponse<MarkAttendanceResponse>.Ok(result, "Check-out recorded successfully."));
-    }
-
-    /// <summary>
-    /// Get today's attendance records.
-    /// </summary>
-    [HttpGet("today")]
-    [ProducesResponseType(typeof(ApiResponse<List<AttendanceResponse>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetToday(CancellationToken cancellationToken)
-    {
-        var records = await _attendanceService.GetTodayAttendanceAsync(cancellationToken);
-        return Ok(ApiResponse<List<AttendanceResponse>>.Ok(records));
-    }
-
-    /// <summary>
-    /// Get today's attendance status for a specific employee.
-    /// </summary>
-    [HttpGet("today/{employeeId:guid}")]
-    [ProducesResponseType(typeof(ApiResponse<AttendanceResponse>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetEmployeeToday(Guid employeeId, CancellationToken cancellationToken)
-    {
-        var record = await _attendanceService.GetEmployeeTodayAsync(employeeId, cancellationToken);
-
-        if (record is null)
-            return NotFound(ApiResponse<object>.Fail($"No attendance record found for employee '{employeeId}' today."));
-
-        return Ok(ApiResponse<AttendanceResponse>.Ok(record));
-    }
-
-    /// <summary>
-    /// Get paginated attendance records with optional filters.
-    /// Supports filtering by date range, department, and employee.
+    /// Get attendance records for a given date (defaults to today).
+    /// Returns all employees who marked attendance on that day.
     /// </summary>
     [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<PagedResult<AttendanceResponse>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetRecords([FromQuery] AttendanceQueryParams query, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetDailyAttendance([FromQuery] string? date, CancellationToken cancellationToken)
     {
-        var result = await _attendanceService.GetAttendanceRecordsAsync(query, cancellationToken);
-        return Ok(ApiResponse<PagedResult<AttendanceResponse>>.Ok(result));
-    }
+        DateOnly day;
+        if (string.IsNullOrWhiteSpace(date))
+        {
+            day = DateOnly.FromDateTime(DateTime.UtcNow);
+        }
+        else if (!DateOnly.TryParseExact(date, "yyyy-MM-dd", out day))
+        {
+            return BadRequest(new { message = "date must be in YYYY-MM-DD format." });
+        }
 
-    private List<string> GetModelErrors() =>
-        ModelState.Values
-            .SelectMany(v => v.Errors)
-            .Select(e => e.ErrorMessage)
-            .ToList();
-
-    private static async Task<string> ToBase64Async(IFormFile file)
-    {
-        using var ms = new MemoryStream();
-        await file.CopyToAsync(ms);
-        return Convert.ToBase64String(ms.ToArray());
+        var records = await _attendanceService.GetDailyAttendanceAsync(day, cancellationToken);
+        return Ok(new { date = day.ToString("yyyy-MM-dd"), count = records.Count, records });
     }
 }

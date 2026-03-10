@@ -1,13 +1,8 @@
 using System.Net;
 using System.Text.Json;
-using FacialRecognitionAPI.Models.DTOs.Responses;
 
 namespace FacialRecognitionAPI.Middleware;
 
-/// <summary>
-/// Global exception handler middleware for consistent error responses.
-/// Catches all unhandled exceptions and returns structured JSON responses.
-/// </summary>
 public class GlobalExceptionHandlerMiddleware
 {
     private readonly RequestDelegate _next;
@@ -40,7 +35,7 @@ public class GlobalExceptionHandlerMiddleware
     {
         var (statusCode, message) = exception switch
         {
-            UnauthorizedAccessException => (HttpStatusCode.Unauthorized, exception.Message),
+            ConflictException => (HttpStatusCode.Conflict, exception.Message),
             KeyNotFoundException => (HttpStatusCode.NotFound, exception.Message),
             ArgumentException => (HttpStatusCode.BadRequest, exception.Message),
             InvalidOperationException => (HttpStatusCode.BadRequest, exception.Message),
@@ -48,28 +43,16 @@ public class GlobalExceptionHandlerMiddleware
             _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred.")
         };
 
-        // Log the exception
         if (statusCode == HttpStatusCode.InternalServerError)
-        {
             _logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
-        }
         else
-        {
             _logger.LogWarning("Handled exception ({StatusCode}): {Message}", (int)statusCode, exception.Message);
-        }
-
-        var response = ApiResponse.Fail(message);
-
-        // Include stack trace in development
-        if (_env.IsDevelopment() && statusCode == HttpStatusCode.InternalServerError)
-        {
-            response.Errors = new List<string> { exception.ToString() };
-        }
 
         context.Response.ContentType = "application/json";
         context.Response.StatusCode = (int)statusCode;
 
+        var body = new { message };
         var jsonOptions = new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
-        await context.Response.WriteAsync(JsonSerializer.Serialize(response, jsonOptions));
+        await context.Response.WriteAsync(JsonSerializer.Serialize(body, jsonOptions));
     }
 }

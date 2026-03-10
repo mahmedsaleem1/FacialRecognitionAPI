@@ -1,6 +1,33 @@
 @FacialRecognitionAPI_HostAddress = http://localhost:5063
 
-GET {{FacialRecognitionAPI_HostAddress}}/weatherforecast/
+### ─── API 1: Register Employee ───────────────────────────────────────────────
+# POST /api/employees  (multipart/form-data)
+# Use a REST client that supports file uploads (e.g., Thunder Client, Postman).
+# curl equivalent:
+# curl -X POST http://localhost:5063/api/employees \
+#   -F "fullName=Ahmed Khan" \
+#   -F "email=ahmed@company.com" \
+#   -F "phone=03001234567" \
+#   -F "department=Engineering" \
+#   -F "position=Software Engineer" \
+#   -F "joinDate=2024-03-01" \
+#   -F "faceImage=@/path/to/face.jpg;type=image/jpeg"
+
+### ─── API 2: Mark Attendance ────────────────────────────────────────────────
+POST {{FacialRecognitionAPI_HostAddress}}/api/attendance
+Content-Type: application/json
+Accept: application/json
+
+{
+  "uuid": "550e8400-e29b-41d4-a716-446655440000"
+}
+
+### ─── API 3: Get Today's Attendance ─────────────────────────────────────────
+GET {{FacialRecognitionAPI_HostAddress}}/api/attendance
+Accept: application/json
+
+### ─── API 3 (with specific date) ───────────────────────────────────────────
+GET {{FacialRecognitionAPI_HostAddress}}/api/attendance?date=2026-03-10
 Accept: application/json
 
 ###

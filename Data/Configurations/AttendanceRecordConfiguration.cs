@@ -8,41 +8,28 @@ public class AttendanceRecordConfiguration : IEntityTypeConfiguration<Attendance
 {
     public void Configure(EntityTypeBuilder<AttendanceRecord> builder)
     {
-        builder.ToTable("AttendanceRecords");
+        builder.ToTable("Attendance");
 
         builder.HasKey(a => a.Id);
         builder.Property(a => a.Id)
-            .HasDefaultValueSql("NEWSEQUENTIALID()");
-
-        builder.Property(a => a.Date)
-            .IsRequired();
-
-        builder.Property(a => a.CheckInTime)
-            .IsRequired();
-
-        builder.Property(a => a.CheckInSimilarityScore)
-            .HasColumnType("real");
-
-        builder.Property(a => a.CheckOutSimilarityScore)
-            .HasColumnType("real");
+            .HasDefaultValueSql("NEWID()");
 
         builder.Property(a => a.Status)
-            .HasConversion<string>()
             .HasMaxLength(20)
-            .IsRequired();
+            .IsRequired()
+            .HasDefaultValue("present");
 
-        builder.Property(a => a.Notes)
-            .HasMaxLength(500);
-
-        builder.Property(a => a.CreatedAt)
+        builder.Property(a => a.MarkedAt)
             .HasDefaultValueSql("GETUTCDATE()");
 
-        // Composite unique: one check-in per employee per day
-        builder.HasIndex(a => new { a.EmployeeId, a.Date })
-            .IsUnique();
+        // One attendance record per employee per day
+        builder.HasIndex(a => new { a.EmployeeId, a.MarkedAt })
+            .IsUnique()
+            .HasFilter(null);
 
-        // Indexes for analytics queries
-        builder.HasIndex(a => a.Date);
-        builder.HasIndex(a => a.Status);
+        builder.HasOne(a => a.Employee)
+            .WithMany(e => e.AttendanceRecords)
+            .HasForeignKey(a => a.EmployeeId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -20,20 +20,4 @@ public class ApplicationDbContext : DbContext
         modelBuilder.ApplyConfiguration(new Configurations.EmployeeConfiguration());
         modelBuilder.ApplyConfiguration(new Configurations.AttendanceRecordConfiguration());
     }
-
-    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
-    {
-        var entries = ChangeTracker.Entries()
-            .Where(e => e.State == EntityState.Modified);
-
-        foreach (var entry in entries)
-        {
-            if (entry.Entity is Employee emp)
-                emp.UpdatedAt = DateTime.UtcNow;
-            else if (entry.Entity is AttendanceRecord rec)
-                rec.UpdatedAt = DateTime.UtcNow;
-        }
-
-        return base.SaveChangesAsync(cancellationToken);
-    }
 }

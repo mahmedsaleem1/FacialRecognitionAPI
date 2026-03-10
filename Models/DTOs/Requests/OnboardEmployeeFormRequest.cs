@@ -2,35 +2,26 @@ using System.ComponentModel.DataAnnotations;
 
 namespace FacialRecognitionAPI.Models.DTOs.Requests;
 
-/// <summary>
-/// Multipart/form-data version of the onboard request.
-/// Send the image as a file upload — no Base64 conversion needed.
-/// </summary>
-public class OnboardEmployeeFormRequest
+public class RegisterEmployeeFormRequest
 {
-    [Required, MaxLength(200)]
+    [Required, MaxLength(255)]
     public string FullName { get; set; } = string.Empty;
 
-    [Required, EmailAddress, MaxLength(256)]
+    [Required, EmailAddress, MaxLength(255)]
     public string Email { get; set; } = string.Empty;
 
-    [MaxLength(20)]
-    public string? Phone { get; set; }
+    [Required, MaxLength(30)]
+    public string Phone { get; set; } = string.Empty;
 
-    [MaxLength(100)]
-    public string? Department { get; set; }
+    [Required, MaxLength(100)]
+    public string Department { get; set; } = string.Empty;
 
-    [MaxLength(100)]
-    public string? Position { get; set; }
+    [Required, MaxLength(100)]
+    public string Position { get; set; } = string.Empty;
 
-    /// <summary>
-    /// The employee's face photo (JPEG or PNG).
-    /// </summary>
+    [Required]
+    public string JoinDate { get; set; } = string.Empty; // YYYY-MM-DD
+
     [Required]
     public IFormFile FaceImage { get; set; } = null!;
-
-    /// <summary>
-    /// Date the employee joined (defaults to today if omitted).
-    /// </summary>
-    public DateTime? JoinDate { get; set; }
 }
