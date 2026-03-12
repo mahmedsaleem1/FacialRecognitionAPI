@@ -29,6 +29,7 @@ public static class ServiceCollectionExtensions
         // Services
         services.AddScoped<IEmployeeService, EmployeeService>();
         services.AddScoped<IAttendanceService, AttendanceService>();
+        services.AddScoped<IDashboardService, DashboardService>();
 
         return services;
     }

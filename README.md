@@ -340,6 +340,391 @@ FacialRecognitionAPI/
 
 ---
 
+## Dashboard API Reference (for React Frontend)
+
+**Base URL:** `http://localhost:{port}/api/dashboard`
+**All responses are JSON with `camelCase` property names. Null fields are omitted.**
+**All date query params use `yyyy-MM-dd` format (e.g. `2026-03-12`).**
+**All datetime strings in responses use ISO 8601 (e.g. `2026-03-12T08:30:00.0000000Z`).**
+**CORS is fully open — any origin, method, header allowed.**
+
+---
+
+### 1. GET `/api/dashboard/summary`
+
+**Purpose:** Main dashboard overview card — totals, today's stats, recent activity.
+**Query params:** None
+
+**Response 200:**
+```json
+{
+  "totalEmployees": 50,
+  "todayPresentCount": 42,
+  "todayAbsentCount": 8,
+  "todayAttendanceRate": 84.0,
+  "newEmployeesThisMonth": 3,
+  "averageAttendanceRateLast30Days": 87.5,
+  "recentActivity": [
+    {
+      "employeeId": "guid-string",
+      "fullName": "John Doe",
+      "department": "Engineering",
+      "markedAt": "2026-03-12T08:30:00.0000000Z",
+      "status": "present"
+    }
+  ]
+}
+```
+`recentActivity` contains up to 10 most recent attendance marks.
+
+---
+
+### 2. GET `/api/dashboard/employees`
+
+**Purpose:** Paginated employee list with search & filter. For employee management table.
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `search` | string? | null | Searches by name or email (case-insensitive) |
+| `department` | string? | null | Filter by exact department name (case-insensitive) |
+| `page` | int | 1 | Page number (min 1) |
+| `pageSize` | int | 20 | Items per page (min 1, max 100) |
+
+**Response 200:**
+```json
+{
+  "totalCount": 50,
+  "page": 1,
+  "pageSize": 20,
+  "totalPages": 3,
+  "employees": [
+    {
+      "uuid": "guid-string",
+      "fullName": "John Doe",
+      "email": "john@example.com",
+      "phone": "+1234567890",
+      "department": "Engineering",
+      "position": "Senior Developer",
+      "joinDate": "2025-06-15",
+      "createdAt": "2025-06-15T10:00:00.0000000Z",
+      "totalAttendanceDays": 180,
+      "attendanceRate": 92.31,
+      "lastAttendanceDate": "2026-03-12T08:30:00.0000000Z"
+    }
+  ]
+}
+```
+- `attendanceRate` — percentage (0–100) from join date to today, working days only (Mon–Fri).
+- `lastAttendanceDate` — null if employee has never marked attendance.
+
+---
+
+### 3. GET `/api/dashboard/employees/{id}`
+
+**Purpose:** Single employee detail card/modal.
+**Path param:** `id` — Employee GUID
+
+**Response 200:**
+```json
+{
+  "uuid": "guid-string",
+  "fullName": "John Doe",
+  "email": "john@example.com",
+  "phone": "+1234567890",
+  "department": "Engineering",
+  "position": "Senior Developer",
+  "joinDate": "2025-06-15",
+  "createdAt": "2025-06-15T10:00:00.0000000Z",
+  "totalAttendanceDays": 180,
+  "attendanceRate": 92.31,
+  "lastAttendanceDate": "2026-03-12T08:30:00.0000000Z"
+}
+```
+**Error 404:** `{ "message": "Employee not found." }`
+
+---
+
+### 4. GET `/api/dashboard/employees/by-department`
+
+**Purpose:** Department breakdown for pie/bar chart or summary cards.
+**Query params:** None
+
+**Response 200:**
+```json
+{
+  "departments": [
+    {
+      "department": "Engineering",
+      "employeeCount": 20,
+      "averageAttendanceRate": 0,
+      "todayPresentCount": 17,
+      "todayAbsentCount": 3
+    },
+    {
+      "department": "Unassigned",
+      "employeeCount": 2,
+      "averageAttendanceRate": 0,
+      "todayPresentCount": 1,
+      "todayAbsentCount": 1
+    }
+  ]
+}
+```
+Employees without a department show as `"Unassigned"`.
+
+---
+
+### 5. DELETE `/api/dashboard/attendance/{id}`
+
+**Purpose:** Delete an attendance record by its ID.
+**Path param:** `id` — Attendance record GUID
+
+**Response 204:** No content (success, empty body).
+**Error 404:** `{ "message": "Attendance record not found." }`
+
+---
+
+### 6. GET `/api/dashboard/attendance/overview`
+
+**Purpose:** Daily attendance breakdown for a date range. Good for bar charts.
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `from` | string? | 6 days before `to` | Start date `yyyy-MM-dd` |
+| `to` | string? | today | End date `yyyy-MM-dd` |
+
+**Response 200:**
+```json
+{
+  "fromDate": "2026-03-06",
+  "toDate": "2026-03-12",
+  "totalWorkingDays": 5,
+  "totalEmployees": 50,
+  "averageAttendanceRate": 85.6,
+  "dailySummaries": [
+    {
+      "date": "2026-03-06",
+      "presentCount": 43,
+      "absentCount": 7,
+      "attendanceRate": 86.0
+    }
+  ]
+}
+```
+Weekends (Sat/Sun) are excluded from `dailySummaries`.
+
+---
+
+### 7. GET `/api/dashboard/attendance/monthly`
+
+**Purpose:** Full month report with per-employee breakdown. For monthly report table.
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `year` | int? | current year | Year |
+| `month` | int? | current month | Month (1–12) |
+
+**Response 200:**
+```json
+{
+  "year": 2026,
+  "month": 3,
+  "totalWorkingDays": 22,
+  "totalEmployees": 50,
+  "averageAttendanceRate": 87.3,
+  "records": [
+    {
+      "employeeId": "guid-string",
+      "fullName": "John Doe",
+      "department": "Engineering",
+      "daysPresent": 20,
+      "daysAbsent": 2,
+      "attendanceRate": 90.91
+    }
+  ]
+}
+```
+Records sorted by `daysPresent` descending. `totalWorkingDays` capped to today if month hasn't ended.
+
+---
+
+### 8. GET `/api/dashboard/attendance/employee/{id}`
+
+**Purpose:** Individual employee attendance calendar/history view.
+**Path param:** `id` — Employee GUID
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `from` | string? | 29 days before `to` | Start date `yyyy-MM-dd` |
+| `to` | string? | today | End date `yyyy-MM-dd` |
+
+**Response 200:**
+```json
+{
+  "employeeId": "guid-string",
+  "fullName": "John Doe",
+  "department": "Engineering",
+  "totalDaysPresent": 18,
+  "attendanceRate": 90.0,
+  "history": [
+    {
+      "date": "2026-03-12",
+      "markedAt": "2026-03-12T08:30:00.0000000Z",
+      "status": "present"
+    }
+  ]
+}
+```
+History sorted newest first. **Error 404:** `{ "message": "Employee not found." }`
+
+---
+
+### 9. GET `/api/dashboard/analytics/attendance-trend`
+
+**Purpose:** Line/area chart data points for attendance over time.
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `from` | string? | 29 days before `to` | Start date `yyyy-MM-dd` |
+| `to` | string? | today | End date `yyyy-MM-dd` |
+
+**Response 200:**
+```json
+{
+  "fromDate": "2026-02-11",
+  "toDate": "2026-03-12",
+  "dataPoints": [
+    {
+      "date": "2026-02-11",
+      "presentCount": 40,
+      "totalEmployees": 50,
+      "attendanceRate": 80.0
+    }
+  ]
+}
+```
+Weekends excluded. One data point per working day.
+
+---
+
+### 10. GET `/api/dashboard/analytics/department-stats`
+
+**Purpose:** Department-wise analytics. For grouped bar chart or comparison table.
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `from` | string? | 29 days before `to` | Start date `yyyy-MM-dd` |
+| `to` | string? | today | End date `yyyy-MM-dd` |
+
+**Response 200:**
+```json
+{
+  "departments": [
+    {
+      "department": "Engineering",
+      "employeeCount": 20,
+      "averageAttendanceRate": 91.5,
+      "todayPresentCount": 18,
+      "todayAbsentCount": 2
+    }
+  ]
+}
+```
+`averageAttendanceRate` is over the full date range. `todayPresentCount`/`todayAbsentCount` are always for today.
+
+---
+
+### 11. GET `/api/dashboard/analytics/top-attendees`
+
+**Purpose:** Leaderboard / top performers widget.
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `from` | string? | 29 days before `to` | Start date `yyyy-MM-dd` |
+| `to` | string? | today | End date `yyyy-MM-dd` |
+| `count` | int | 10 | Number of top employees (min 1, max 100) |
+
+**Response 200:**
+```json
+{
+  "fromDate": "2026-02-11",
+  "toDate": "2026-03-12",
+  "rankings": [
+    {
+      "rank": 1,
+      "employeeId": "guid-string",
+      "fullName": "Jane Smith",
+      "department": "Engineering",
+      "daysPresent": 20,
+      "totalWorkingDays": 20,
+      "attendanceRate": 100.0
+    }
+  ]
+}
+```
+
+---
+
+### 12. GET `/api/dashboard/analytics/low-attendees`
+
+**Purpose:** Flagged employees / at-risk list.
+
+**Query params:**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `from` | string? | 29 days before `to` | Start date `yyyy-MM-dd` |
+| `to` | string? | today | End date `yyyy-MM-dd` |
+| `threshold` | double | 75 | Percentage threshold (0–100). Returns employees BELOW this rate |
+
+**Response 200:**
+```json
+{
+  "fromDate": "2026-02-11",
+  "toDate": "2026-03-12",
+  "threshold": 75.0,
+  "employees": [
+    {
+      "rank": 1,
+      "employeeId": "guid-string",
+      "fullName": "Low Performer",
+      "department": "Sales",
+      "daysPresent": 10,
+      "totalWorkingDays": 20,
+      "attendanceRate": 50.0
+    }
+  ]
+}
+```
+Sorted by attendance rate ascending (worst first). `rank` is 1-indexed.
+
+---
+
+### Error Responses (all endpoints)
+
+| Status | Body |
+|---|---|
+| **400** | `{ "message": "description of what's wrong" }` |
+| **404** | `{ "message": "Employee not found." }` |
+| **429** | Rate limit exceeded (100 req/min per IP) |
+| **500** | `{ "message": "An unexpected error occurred." }` |
+
+---
+
 ## License
 
 This project is provided as-is for educational and internal use.
