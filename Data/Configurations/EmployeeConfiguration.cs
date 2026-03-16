@@ -27,12 +27,6 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(e => e.Phone)
             .HasMaxLength(30);
 
-        builder.Property(e => e.Department)
-            .HasMaxLength(100);
-
-        builder.Property(e => e.Position)
-            .HasMaxLength(100);
-
         builder.Property(e => e.FaceImagePath)
             .HasMaxLength(500);
 
@@ -43,5 +37,18 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
             .WithOne(a => a.Employee)
             .HasForeignKey(a => a.EmployeeId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(e => e.DepartmentLookup)
+            .WithMany(d => d.Employees)
+            .HasForeignKey(e => e.DepartmentId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(e => e.PositionLookup)
+            .WithMany(p => p.Employees)
+            .HasForeignKey(e => e.PositionId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasIndex(e => e.DepartmentId);
+        builder.HasIndex(e => e.PositionId);
     }
 }

@@ -11,21 +11,22 @@ public class AttendanceRepository : Repository<AttendanceRecord>, IAttendanceRep
 
     public async Task<bool> HasAttendanceTodayAsync(Guid employeeId, CancellationToken cancellationToken = default)
     {
-        var todayUtc = DateTime.UtcNow.Date;
-        var tomorrowUtc = todayUtc.AddDays(1);
+        var todayUtc = DateOnly.FromDateTime(DateTime.UtcNow);
         return await _dbSet.AnyAsync(
-            a => a.EmployeeId == employeeId && a.MarkedAt >= todayUtc && a.MarkedAt < tomorrowUtc,
+            a => a.EmployeeId == employeeId && a.AttendanceDate == todayUtc,
             cancellationToken);
     }
 
     public async Task<List<AttendanceRecord>> GetByDateAsync(DateTime dateUtc, CancellationToken cancellationToken = default)
     {
-        var start = dateUtc.Date;
-        var end = start.AddDays(1);
+        var day = DateOnly.FromDateTime(dateUtc);
         return await _dbSet
             .AsNoTracking()
             .Include(a => a.Employee)
-            .Where(a => a.MarkedAt >= start && a.MarkedAt < end)
+            .Include(a => a.AttendanceStatus)
+            .Include(a => a.Employee.DepartmentLookup)
+            .Include(a => a.Employee.PositionLookup)
+            .Where(a => a.AttendanceDate == day)
             .OrderBy(a => a.MarkedAt)
             .ToListAsync(cancellationToken);
     }

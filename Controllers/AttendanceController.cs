@@ -34,7 +34,17 @@ public class AttendanceController : ControllerBase
             return BadRequest(new { message = firstError });
         }
 
-        var response = await _attendanceService.MarkAttendanceAsync(request, cancellationToken);
+        // Use server-side API hit timestamp; frontend does not provide this value.
+        var checkInTimestamp = DateTimeOffset.Now;
+
+        var checkInTime = checkInTimestamp.TimeOfDay;
+        var allowedStart = new TimeSpan(9, 0, 0);
+        var allowedEnd = new TimeSpan(17, 0, 0);
+
+        if (checkInTime < allowedStart || checkInTime > allowedEnd)
+            return BadRequest(new { message = "Check-in is allowed only between 09:00 AM and 05:00 PM." });
+
+        var response = await _attendanceService.MarkAttendanceAsync(request, checkInTimestamp, cancellationToken);
         _logger.LogInformation("Attendance marked: {AttendanceId} for UUID {Uuid}", response.AttendanceId, response.Uuid);
         return Created(string.Empty, response);
     }

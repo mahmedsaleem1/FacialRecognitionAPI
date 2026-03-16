@@ -22,21 +22,22 @@ public class DashboardService : IDashboardService
     public async Task<DashboardSummaryResponse> GetDashboardSummaryAsync(CancellationToken ct = default)
     {
         var todayUtc = DateTime.UtcNow.Date;
-        var tomorrowUtc = todayUtc.AddDays(1);
+        var today = DateOnly.FromDateTime(todayUtc);
         var monthStart = new DateTime(todayUtc.Year, todayUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         var thirtyDaysAgo = todayUtc.AddDays(-30);
+        var thirtyDaysAgoDate = DateOnly.FromDateTime(thirtyDaysAgo);
 
         var totalEmployees = await _db.Employees.CountAsync(ct);
         var todayPresentCount = await _db.AttendanceRecords
-            .CountAsync(a => a.MarkedAt >= todayUtc && a.MarkedAt < tomorrowUtc, ct);
+            .CountAsync(a => a.AttendanceDate == today, ct);
 
         var newEmployeesThisMonth = await _db.Employees
             .CountAsync(e => e.CreatedAt >= monthStart, ct);
 
         // Average attendance rate last 30 days (exclude weekends - Mon-Fri)
         var last30DaysAttendance = await _db.AttendanceRecords
-            .Where(a => a.MarkedAt >= thirtyDaysAgo && a.MarkedAt < tomorrowUtc)
-            .GroupBy(a => a.MarkedAt.Date)
+            .Where(a => a.AttendanceDate >= thirtyDaysAgoDate && a.AttendanceDate <= today)
+            .GroupBy(a => a.AttendanceDate)
             .Select(g => new { Date = g.Key, Count = g.Count() })
             .ToListAsync(ct);
 
@@ -58,9 +59,9 @@ public class DashboardService : IDashboardService
             {
                 EmployeeId = a.EmployeeId.ToString(),
                 FullName = a.Employee.FullName,
-                Department = a.Employee.Department,
+                Department = a.Employee.DepartmentLookup != null ? a.Employee.DepartmentLookup.Name : null,
                 MarkedAt = a.MarkedAt.ToString("O"),
-                Status = a.Status
+                Status = a.AttendanceStatus.Name
             })
             .ToListAsync(ct);
 
@@ -96,7 +97,7 @@ public class DashboardService : IDashboardService
         if (!string.IsNullOrWhiteSpace(department))
         {
             var dept = department.Trim().ToLower();
-            query = query.Where(e => e.Department != null && e.Department.ToLower() == dept);
+            query = query.Where(e => e.DepartmentLookup != null && e.DepartmentLookup.Name.ToLower() == dept);
         }
 
         var totalCount = await query.CountAsync(ct);
@@ -112,8 +113,8 @@ public class DashboardService : IDashboardService
                 e.FullName,
                 e.Email,
                 e.Phone,
-                e.Department,
-                e.Position,
+                Department = e.DepartmentLookup != null ? e.DepartmentLookup.Name : null,
+                Position = e.PositionLookup != null ? e.PositionLookup.Name : null,
                 e.JoinDate,
                 e.CreatedAt,
                 TotalAttendanceDays = e.AttendanceRecords.Count(),
@@ -165,8 +166,8 @@ public class DashboardService : IDashboardService
                 emp.FullName,
                 emp.Email,
                 emp.Phone,
-                emp.Department,
-                emp.Position,
+                Department = emp.DepartmentLookup != null ? emp.DepartmentLookup.Name : null,
+                Position = emp.PositionLookup != null ? emp.PositionLookup.Name : null,
                 emp.JoinDate,
                 emp.CreatedAt,
                 TotalAttendanceDays = emp.AttendanceRecords.Count(),
@@ -200,19 +201,19 @@ public class DashboardService : IDashboardService
     public async Task<List<DepartmentStat>> GetEmployeesByDepartmentAsync(CancellationToken ct = default)
     {
         var todayUtc = DateTime.UtcNow.Date;
-        var tomorrowUtc = todayUtc.AddDays(1);
+        var today = DateOnly.FromDateTime(todayUtc);
 
         return await _db.Employees
             .AsNoTracking()
-            .GroupBy(e => e.Department ?? "Unassigned")
+            .GroupBy(e => e.DepartmentLookup != null ? e.DepartmentLookup.Name : "Unassigned")
             .Select(g => new DepartmentStat
             {
                 Department = g.Key,
                 EmployeeCount = g.Count(),
                 TodayPresentCount = g.Count(e =>
-                    e.AttendanceRecords.Any(a => a.MarkedAt >= todayUtc && a.MarkedAt < tomorrowUtc)),
+                    e.AttendanceRecords.Any(a => a.AttendanceDate == today)),
                 TodayAbsentCount = g.Count() - g.Count(e =>
-                    e.AttendanceRecords.Any(a => a.MarkedAt >= todayUtc && a.MarkedAt < tomorrowUtc)),
+                    e.AttendanceRecords.Any(a => a.AttendanceDate == today)),
                 AverageAttendanceRate = 0 // computed below
             })
             .ToListAsync(ct);
@@ -237,12 +238,14 @@ public class DashboardService : IDashboardService
     {
         var fromUtc = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var toUtc = to.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddDays(1);
+        var fromDate = DateOnly.FromDateTime(fromUtc);
+        var toDate = DateOnly.FromDateTime(toUtc.AddDays(-1));
         var totalEmployees = await _db.Employees.CountAsync(ct);
 
         var dailyCounts = await _db.AttendanceRecords
             .AsNoTracking()
-            .Where(a => a.MarkedAt >= fromUtc && a.MarkedAt < toUtc)
-            .GroupBy(a => a.MarkedAt.Date)
+            .Where(a => a.AttendanceDate >= fromDate && a.AttendanceDate <= toDate)
+            .GroupBy(a => a.AttendanceDate)
             .Select(g => new { Date = g.Key, Count = g.Count() })
             .OrderBy(g => g.Date)
             .ToListAsync(ct);
@@ -251,7 +254,7 @@ public class DashboardService : IDashboardService
 
         var summaries = workingDays.Select(d =>
         {
-            var count = dailyCounts.FirstOrDefault(c => DateOnly.FromDateTime(c.Date) == d)?.Count ?? 0;
+            var count = dailyCounts.FirstOrDefault(c => c.Date == d)?.Count ?? 0;
             return new DailyAttendanceSummary
             {
                 Date = d.ToString("yyyy-MM-dd"),
@@ -294,9 +297,9 @@ public class DashboardService : IDashboardService
             {
                 e.Id,
                 e.FullName,
-                e.Department,
+                Department = e.DepartmentLookup != null ? e.DepartmentLookup.Name : null,
                 DaysPresent = e.AttendanceRecords
-                    .Count(a => a.MarkedAt >= fromUtc && a.MarkedAt < toUtc)
+                    .Count(a => a.AttendanceDate >= from && a.AttendanceDate <= to)
             })
             .OrderByDescending(e => e.DaysPresent)
             .ToListAsync(ct);
@@ -334,16 +337,18 @@ public class DashboardService : IDashboardService
 
         var fromUtc = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var toUtc = to.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddDays(1);
+        var fromDate = DateOnly.FromDateTime(fromUtc);
+        var toDate = DateOnly.FromDateTime(toUtc.AddDays(-1));
 
         var records = await _db.AttendanceRecords
             .AsNoTracking()
-            .Where(a => a.EmployeeId == employeeId && a.MarkedAt >= fromUtc && a.MarkedAt < toUtc)
+            .Where(a => a.EmployeeId == employeeId && a.AttendanceDate >= fromDate && a.AttendanceDate <= toDate)
             .OrderByDescending(a => a.MarkedAt)
             .Select(a => new AttendanceHistoryItem
             {
                 Date = a.MarkedAt.Date.ToString("yyyy-MM-dd"),
                 MarkedAt = a.MarkedAt.ToString("O"),
-                Status = a.Status
+                Status = a.AttendanceStatus.Name
             })
             .ToListAsync(ct);
 
@@ -353,7 +358,7 @@ public class DashboardService : IDashboardService
         {
             EmployeeId = employeeId.ToString(),
             FullName = employee.FullName,
-            Department = employee.Department,
+            Department = employee.DepartmentLookup != null ? employee.DepartmentLookup.Name : null,
             TotalDaysPresent = records.Count,
             AttendanceRate = workingDays > 0
                 ? Math.Round(records.Count / (double)workingDays * 100, 2) : 0,
@@ -369,12 +374,14 @@ public class DashboardService : IDashboardService
     {
         var fromUtc = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var toUtc = to.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddDays(1);
+        var fromDate = DateOnly.FromDateTime(fromUtc);
+        var toDate = DateOnly.FromDateTime(toUtc.AddDays(-1));
         var totalEmployees = await _db.Employees.CountAsync(ct);
 
         var dailyCounts = await _db.AttendanceRecords
             .AsNoTracking()
-            .Where(a => a.MarkedAt >= fromUtc && a.MarkedAt < toUtc)
-            .GroupBy(a => a.MarkedAt.Date)
+            .Where(a => a.AttendanceDate >= fromDate && a.AttendanceDate <= toDate)
+            .GroupBy(a => a.AttendanceDate)
             .Select(g => new { Date = g.Key, Count = g.Count() })
             .OrderBy(g => g.Date)
             .ToListAsync(ct);
@@ -387,7 +394,7 @@ public class DashboardService : IDashboardService
             ToDate = to.ToString("yyyy-MM-dd"),
             DataPoints = workingDays.Select(d =>
             {
-                var count = dailyCounts.FirstOrDefault(c => DateOnly.FromDateTime(c.Date) == d)?.Count ?? 0;
+                var count = dailyCounts.FirstOrDefault(c => c.Date == d)?.Count ?? 0;
                 return new TrendDataPoint
                 {
                     Date = d.ToString("yyyy-MM-dd"),
@@ -406,20 +413,20 @@ public class DashboardService : IDashboardService
         var fromUtc = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         var toUtc = to.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc).AddDays(1);
         var todayUtc = DateTime.UtcNow.Date;
-        var tomorrowUtc = todayUtc.AddDays(1);
+        var today = DateOnly.FromDateTime(todayUtc);
         var workingDayCount = GetWorkingDays(from, to).Count;
 
         var departments = await _db.Employees
             .AsNoTracking()
-            .GroupBy(e => e.Department ?? "Unassigned")
+            .GroupBy(e => e.DepartmentLookup != null ? e.DepartmentLookup.Name : "Unassigned")
             .Select(g => new
             {
                 Department = g.Key,
                 EmployeeCount = g.Count(),
                 TotalAttendance = g.Sum(e =>
-                    e.AttendanceRecords.Count(a => a.MarkedAt >= fromUtc && a.MarkedAt < toUtc)),
+                    e.AttendanceRecords.Count(a => a.AttendanceDate >= from && a.AttendanceDate <= to)),
                 TodayPresentCount = g.Count(e =>
-                    e.AttendanceRecords.Any(a => a.MarkedAt >= todayUtc && a.MarkedAt < tomorrowUtc))
+                    e.AttendanceRecords.Any(a => a.AttendanceDate == today))
             })
             .ToListAsync(ct);
 
@@ -451,9 +458,9 @@ public class DashboardService : IDashboardService
             {
                 e.Id,
                 e.FullName,
-                e.Department,
+                Department = e.DepartmentLookup != null ? e.DepartmentLookup.Name : null,
                 DaysPresent = e.AttendanceRecords
-                    .Count(a => a.MarkedAt >= fromUtc && a.MarkedAt < toUtc)
+                    .Count(a => a.AttendanceDate >= from && a.AttendanceDate <= to)
             })
             .OrderByDescending(e => e.DaysPresent)
             .Take(count)
@@ -490,9 +497,9 @@ public class DashboardService : IDashboardService
             {
                 e.Id,
                 e.FullName,
-                e.Department,
+                Department = e.DepartmentLookup != null ? e.DepartmentLookup.Name : null,
                 DaysPresent = e.AttendanceRecords
-                    .Count(a => a.MarkedAt >= fromUtc && a.MarkedAt < toUtc)
+                    .Count(a => a.AttendanceDate >= from && a.AttendanceDate <= to)
             })
             .ToListAsync(ct);
 
