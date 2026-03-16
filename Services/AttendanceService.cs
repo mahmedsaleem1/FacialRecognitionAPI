@@ -57,8 +57,9 @@ public class AttendanceService : IAttendanceService
         {
             Id = Guid.NewGuid(),
             EmployeeId = employeeId,
+            AttendanceDate = DateOnly.FromDateTime(markedAt),
+            AttendanceStatusId = 1,
             MarkedAt = markedAt,
-            Status = "present"
         };
 
         await _attendanceRepo.AddAsync(record, cancellationToken);
@@ -104,10 +105,10 @@ public class AttendanceService : IAttendanceService
             Uuid = r.Employee.Id.ToString(),
             FullName = r.Employee.FullName,
             Email = r.Employee.Email,
-            Department = r.Employee.Department,
-            Position = r.Employee.Position,
+            Department = r.Employee.DepartmentLookup != null ? r.Employee.DepartmentLookup.Name : null,
+            Position = r.Employee.PositionLookup != null ? r.Employee.PositionLookup.Name : null,
             MarkedAt = r.MarkedAt.ToString("O"),
-            Status = r.Status
+            Status = r.AttendanceStatus.Name
         }).ToList();
     }
 }

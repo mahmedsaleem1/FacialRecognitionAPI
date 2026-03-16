@@ -1,6 +1,8 @@
 ﻿using FacialRecognitionAPI.Models.DTOs.Requests;
 using FacialRecognitionAPI.Models.DTOs.Responses;
 using FacialRecognitionAPI.Models.Entities;
+using FacialRecognitionAPI.Data;
+using Microsoft.EntityFrameworkCore;
 using FacialRecognitionAPI.Repositories.Interfaces;
 using FacialRecognitionAPI.Services.Interfaces;
 
@@ -9,12 +11,14 @@ namespace FacialRecognitionAPI.Services;
 public class EmployeeService : IEmployeeService
 {
     private readonly IEmployeeRepository _employeeRepo;
+    private readonly ApplicationDbContext _db;
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<EmployeeService> _logger;
 
-    public EmployeeService(IEmployeeRepository employeeRepo, IWebHostEnvironment env, ILogger<EmployeeService> logger)
+    public EmployeeService(IEmployeeRepository employeeRepo, ApplicationDbContext db, IWebHostEnvironment env, ILogger<EmployeeService> logger)
     {
         _employeeRepo = employeeRepo;
+        _db = db;
         _env = env;
         _logger = logger;
     }
@@ -48,8 +52,8 @@ public class EmployeeService : IEmployeeService
             FullName = form.FullName.Trim(),
             Email = emailLower,
             Phone = form.Phone.Trim(),
-            Department = form.Department.Trim(),
-            Position = form.Position.Trim(),
+            DepartmentId = await ResolveDepartmentIdAsync(form.Department.Trim(), cancellationToken),
+            PositionId = await ResolvePositionIdAsync(form.Position.Trim(), cancellationToken),
             JoinDate = joinDate,
             FaceImagePath = faceImagePath,
             CreatedAt = DateTime.UtcNow
@@ -66,10 +70,44 @@ public class EmployeeService : IEmployeeService
             FullName = employee.FullName,
             Email = employee.Email,
             Phone = employee.Phone,
-            Department = employee.Department,
-            Position = employee.Position,
+            Department = form.Department.Trim(),
+            Position = form.Position.Trim(),
             JoinDate = employee.JoinDate.ToString("yyyy-MM-dd"),
             CreatedAt = employee.CreatedAt.ToString("O")
         };
+    }
+
+    private async Task<int?> ResolveDepartmentIdAsync(string departmentName, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(departmentName))
+            return null;
+
+        var existing = await _db.Departments
+            .FirstOrDefaultAsync(d => d.Name.ToLower() == departmentName.ToLower(), cancellationToken);
+
+        if (existing is not null)
+            return existing.Id;
+
+        var department = new Department { Name = departmentName };
+        _db.Departments.Add(department);
+        await _db.SaveChangesAsync(cancellationToken);
+        return department.Id;
+    }
+
+    private async Task<int?> ResolvePositionIdAsync(string positionName, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(positionName))
+            return null;
+
+        var existing = await _db.Positions
+            .FirstOrDefaultAsync(p => p.Name.ToLower() == positionName.ToLower(), cancellationToken);
+
+        if (existing is not null)
+            return existing.Id;
+
+        var position = new JobPosition { Name = positionName };
+        _db.Positions.Add(position);
+        await _db.SaveChangesAsync(cancellationToken);
+        return position.Id;
     }
 }
