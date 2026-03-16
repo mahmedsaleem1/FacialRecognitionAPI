@@ -25,6 +25,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
         services.AddScoped<IEmployeeRepository, EmployeeRepository>();
         services.AddScoped<IAttendanceRepository, AttendanceRepository>();
+        services.AddScoped<IOfficeLocationRepository, OfficeLocationRepository>();
 
         // Services
         services.AddScoped<IEmployeeService, EmployeeService>();

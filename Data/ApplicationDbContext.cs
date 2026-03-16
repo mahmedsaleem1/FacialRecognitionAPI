@@ -12,6 +12,7 @@ public class ApplicationDbContext : DbContext
 
     public DbSet<Employee> Employees => Set<Employee>();
     public DbSet<AttendanceRecord> AttendanceRecords => Set<AttendanceRecord>();
+    public DbSet<OfficeLocation> OfficeLocations => Set<OfficeLocation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -19,5 +20,6 @@ public class ApplicationDbContext : DbContext
 
         modelBuilder.ApplyConfiguration(new Configurations.EmployeeConfiguration());
         modelBuilder.ApplyConfiguration(new Configurations.AttendanceRecordConfiguration());
+        modelBuilder.ApplyConfiguration(new Configurations.OfficeLocationConfiguration());
     }
 }

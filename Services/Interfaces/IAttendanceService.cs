@@ -5,6 +5,6 @@ namespace FacialRecognitionAPI.Services.Interfaces;
 
 public interface IAttendanceService
 {
-    Task<MarkAttendanceResponse> MarkAttendanceAsync(MarkAttendanceRequest request, CancellationToken cancellationToken = default);
+    Task<MarkAttendanceResponse> MarkAttendanceAsync(MarkAttendanceRequest request, DateTimeOffset checkInTimestamp, CancellationToken cancellationToken = default);
     Task<List<DailyAttendanceRecord>> GetDailyAttendanceAsync(DateOnly date, CancellationToken cancellationToken = default);
 }
